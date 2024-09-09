@@ -4,10 +4,20 @@
 #include <Arduino.h>
 #include <LogFormat.h>
 #include <LogRingBuff.h>
-#include <LogSD.h>
 #include <LogSerial.h>
+
+// #ifndef LOGGING_SD_DISABLE
+#include <LogSD.h>
+// #endif // LOGGING_SD_DISABLE
+
+// #ifndef LOGGING_SPIFFS_DISABLE
 #include <LogSpiffs.h>
+// #endif // LOGGING_SPIFFS_DISABLE
+
+// #ifndef LOGGING_SYSLOG_DISABLE
 #include <LogSyslog.h>
+// #endif // LOGGING_SYSLOG_DISABLE
+
 #include <esp_task_wdt.h>
 
 #define LENGTH_COMMAND 10

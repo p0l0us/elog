@@ -12,7 +12,8 @@ void LogSerial::begin()
  */
 void LogSerial::configure(const uint8_t maxRegistrations)
 {
-    if (this->maxSerialRegistrations > 0) {
+    if (this->maxSerialRegistrations > 0)
+    {
         logger.logInternal(ERROR, "Serial logging already configured with %d registrations", this->maxSerialRegistrations);
         return;
     }
@@ -29,27 +30,45 @@ void LogSerial::configure(const uint8_t maxRegistrations)
  * serial: the serial port to log to
  * logFlags: flags for the log
  */
-void LogSerial::registerSerial(const uint8_t logId, const uint8_t loglevel, const char* serviceName, Stream& serial, const uint8_t logFlags)
+void LogSerial::registerSerial(const uint8_t logId, const uint8_t logLevel, const char *serviceName, Stream &serial, const uint8_t logFlags)
 {
-    if (maxSerialRegistrations == 0) {
+    if (maxSerialRegistrations == 0)
+    {
         configure(10); // If configure is not called, call it with default values
     }
 
-    if (registeredSerialCount >= maxSerialRegistrations) {
+    if (registeredSerialCount >= maxSerialRegistrations)
+    {
         logger.logInternal(ERROR, "Max number of serial registrations reached : %d", maxSerialRegistrations);
         return;
     }
 
-    Setting* setting = &settings[registeredSerialCount++];
-
-    setting->logId = logId;
-    setting->serial = &serial;
-    setting->serviceName = serviceName;
-    setting->logLevel = loglevel;
-    setting->logFlags = logFlags;
-
     char logLevelStr[10];
-    formatter.getLogLevelStringRaw(logLevelStr, loglevel);
+    formatter.getLogLevelStringRaw(logLevelStr, logLevel);
+    bool update = false;
+    for (uint8_t i = 0; i < registeredSerialCount; i++)
+    {
+        Setting *setting = &settings[i];
+        Stream *s = setting->serial;
+        if (setting->logId == logId && s == &serial)
+        {
+            logger.logInternal(DEBUG, "Updating log %d to level %s.", logId, logLevelStr);
+            setting->logLevel = logLevel;
+            setting->logFlags = logFlags;
+            update = true;
+        }
+    }
+    if (!update)
+    {
+        Setting *setting = &settings[registeredSerialCount++];
+
+        setting->logId = logId;
+        setting->serial = &serial;
+        setting->serviceName = serviceName;
+        setting->logLevel = logLevel;
+        setting->logFlags = logFlags;
+    }
+
     logger.logInternal(INFO, "Registered Serial log id %d, level %s, serviceName %s", logId, logLevelStr, serviceName);
 }
 
@@ -59,14 +78,20 @@ void LogSerial::registerSerial(const uint8_t logId, const uint8_t loglevel, cons
  */
 void LogSerial::outputFromBuffer(const LogLineEntry logLineEntry, bool muteSerialOutput)
 {
-    if (logLineEntry.internalLogDevice != nullptr) {
-        Setting settingUnusable = { 0, nullptr, nullptr, NOLOG };
+    if (logLineEntry.internalLogDevice != nullptr)
+    {
+        Setting settingUnusable = {0, nullptr, nullptr, NOLOG};
         write(logLineEntry, settingUnusable);
-    } else {
-        for (uint8_t i = 0; i < registeredSerialCount; i++) {
-            Setting* setting = &settings[i];
-            if (setting->logId == logLineEntry.logId && setting->logLevel != NOLOG) {
-                if (logLineEntry.logLevel <= setting->logLevel && !muteSerialOutput) {
+    }
+    else
+    {
+        for (uint8_t i = 0; i < registeredSerialCount; i++)
+        {
+            Setting *setting = &settings[i];
+            if (setting->logId == logLineEntry.logId && setting->logLevel != NOLOG)
+            {
+                if (logLineEntry.logLevel <= setting->logLevel && !muteSerialOutput)
+                {
                     write(logLineEntry, *setting);
                 }
                 handlePeek(logLineEntry, i); // If peek is enabled from query command
@@ -81,18 +106,25 @@ void LogSerial::outputFromBuffer(const LogLineEntry logLineEntry, bool muteSeria
  */
 void LogSerial::handlePeek(const LogLineEntry logLineEntry, const uint8_t settingIndex)
 {
-    if (peekEnabled) {
-        if (peekAllServices || settingIndex == peekSettingIndex) {
-            if (logLineEntry.logLevel <= peekLoglevel) {
+    if (peekEnabled)
+    {
+        if (peekAllServices || settingIndex == peekSettingIndex)
+        {
+            if (logLineEntry.logLevel <= peekLoglevel)
+            {
                 char logStamp[LENGTH_OF_LOG_STAMP];
                 formatter.getLogStamp(logStamp, logLineEntry.timestamp, logLineEntry.logLevel, settings[settingIndex].serviceName, settings[settingIndex].logFlags);
 
-                if (peekFilter) {
-                    if (strcasestr(logLineEntry.logMessage, peekFilterText) != NULL) {
+                if (peekFilter)
+                {
+                    if (strcasestr(logLineEntry.logMessage, peekFilterText) != NULL)
+                    {
                         querySerial->print(logStamp);
                         querySerial->println(logLineEntry.logMessage);
                     }
-                } else {
+                }
+                else
+                {
                     querySerial->print(logStamp);
                     querySerial->println(logLineEntry.logMessage);
                 }
@@ -107,10 +139,13 @@ void LogSerial::handlePeek(const LogLineEntry logLineEntry, const uint8_t settin
  */
 bool LogSerial::mustLog(const uint8_t logId, const uint8_t logLevel)
 {
-    for (uint8_t i = 0; i < registeredSerialCount; i++) {
-        Setting* setting = &settings[i];
-        if (setting->logId == logId) {
-            if (logLevel <= setting->logLevel && setting->logLevel != NOLOG) {
+    for (uint8_t i = 0; i < registeredSerialCount; i++)
+    {
+        Setting *setting = &settings[i];
+        if (setting->logId == logId)
+        {
+            if (logLevel <= setting->logLevel && setting->logLevel != NOLOG)
+            {
                 return true;
             }
         }
@@ -122,21 +157,24 @@ bool LogSerial::mustLog(const uint8_t logId, const uint8_t logLevel)
  * logLineEntry: the log line entry
  * setting: the setting for the serial port
  */
-void LogSerial::write(const LogLineEntry logLineEntry, Setting& setting)
+void LogSerial::write(const LogLineEntry logLineEntry, Setting &setting)
 {
     static char logStamp[LENGTH_OF_LOG_STAMP];
-    char* service;
-    Stream* logSerial;
+    char *service;
+    Stream *logSerial;
 
-    if (logLineEntry.internalLogDevice != nullptr) {
-        service = (char*)"LOG";
+    if (logLineEntry.internalLogDevice != nullptr)
+    {
+        service = (char *)"LOG";
         logSerial = logLineEntry.internalLogDevice;
 
         formatter.getLogStamp(logStamp, logLineEntry.timestamp, logLineEntry.logLevel, service, setting.logFlags);
         logSerial->print(logStamp);
         logSerial->println(logLineEntry.logMessage);
-    } else {
-        service = (char*)setting.serviceName;
+    }
+    else
+    {
+        service = (char *)setting.serviceName;
         logSerial = setting.serial;
 
         formatter.getLogStamp(logStamp, logLineEntry.timestamp, logLineEntry.logLevel, service, setting.logFlags);
@@ -156,7 +194,7 @@ void LogSerial::outputStats()
 /* Enable the query serial port
  * querySerial: the serial port for query commands
  */
-void LogSerial::enableQuery(Stream& querySerial)
+void LogSerial::enableQuery(Stream &querySerial)
 {
     this->querySerial = &querySerial;
 }
@@ -175,33 +213,41 @@ void LogSerial::queryCmdHelp()
  * loglevel: the log level
  * textFilter: the text filter
  */
-bool LogSerial::queryCmdPeek(const char* serviceName, const char* loglevel, const char* textFilter)
+bool LogSerial::queryCmdPeek(const char *serviceName, const char *loglevel, const char *textFilter)
 {
     peekLoglevel = formatter.getLogLevelFromString(loglevel);
-    if (peekLoglevel == NOLOG) {
+    if (peekLoglevel == NOLOG)
+    {
         querySerial->printf("Invalid loglevel %s. Allowed values are: debug, info, notic, warn, error, crit, alert, emerg\n", loglevel);
         return false;
     }
 
-    if (strcmp(serviceName, "*") == 0) {
+    if (strcmp(serviceName, "*") == 0)
+    {
         peekAllServices = true;
-    } else {
+    }
+    else
+    {
         bool found = false;
-        for (uint8_t i = 0; i < registeredSerialCount; i++) {
-            if (strcasecmp(settings[i].serviceName, serviceName) == 0) {
+        for (uint8_t i = 0; i < registeredSerialCount; i++)
+        {
+            if (strcasecmp(settings[i].serviceName, serviceName) == 0)
+            {
                 peekSettingIndex = i;
                 peekAllServices = false;
                 found = true;
             }
         }
-        if (!found) {
+        if (!found)
+        {
             querySerial->printf("Service \"%s\" not found. Use * for all files\n", serviceName);
             return false;
         }
     }
 
     peekFilter = false;
-    if (strlen(textFilter) > 0) {
+    if (strlen(textFilter) > 0)
+    {
         peekFilter = true;
         strncpy(peekFilterText, textFilter, sizeof(peekFilterText) - 1);
     }
@@ -219,7 +265,8 @@ void LogSerial::queryCmdStatus()
     querySerial->println();
     querySerial->printf("Serial total, messages written: %d\n", stats.messagesWrittenTotal);
     querySerial->printf("Serial total, bytes written: %d\n", stats.bytesWrittenTotal);
-    for (uint8_t i = 0; i < registeredSerialCount; i++) {
+    for (uint8_t i = 0; i < registeredSerialCount; i++)
+    {
         char logLevelStr[10];
         formatter.getLogLevelStringRaw(logLevelStr, settings[i].logLevel);
         querySerial->printf("Serial reg, Service:%s, (ID %d, level %s)\n", settings[i].serviceName, settings[i].logId, logLevelStr);
